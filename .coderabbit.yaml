@@ -36,6 +36,13 @@ reviews:
   suggested_reviewers: false
   enable_prompt_for_ai_agents: false
 
+  pre_merge_checks:
+    title:
+      mode: warning
+      requirements: >-
+        The title is the branch name, `<type>/<name>`, for example `feature/combiner` or
+        `chore/repo-setup`. Don't ask for a descriptive sentence; the description lists the changes.
+
   path_instructions:
     - path: "**/*.rs"
       instructions: |
