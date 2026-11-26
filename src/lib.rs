@@ -2,9 +2,8 @@
 //! [draft-connolly-cfrg-xwing-kem-11](https://www.ietf.org/archive/id/draft-connolly-cfrg-xwing-kem-11.html).
 //!
 //! X-Wing combines ML-KEM-768 (FIPS 203) with X25519 (RFC 7748) and hashes both
-//! shared secrets with SHA3-256. The result stays secure as long as SHA3 holds and
-//! either ML-KEM-768 or X25519 does, so it guards against a
-//! future quantum computer and against a flaw in the newer ML-KEM at the same time.
+//! shared secrets with SHA3-256. X-Wing is secure if SHA3 is secure, and at least one
+//! of X25519 or ML-KEM-768 is secure.
 //!
 //! This crate implements the X-Wing construction itself. The primitives come from
 //! the `ml-kem`, `x25519-dalek`, `sha3` and `shake` crates.
