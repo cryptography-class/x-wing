@@ -2,6 +2,7 @@ use core::convert::Infallible;
 
 use rand_core::{TryCryptoRng, TryRng, utils};
 use shake::{ExtendableOutput, Shake256, Update, XofReader};
+use x_wing_ref::{Decapsulator, KeyExport};
 use x25519_dalek::{PublicKey, X25519_BASEPOINT_BYTES, x25519};
 
 use super::decapsulation_key::expand_decapsulation_key;
@@ -11,6 +12,9 @@ use crate::{DECAPSULATION_KEY_SIZE, ENCAPSULATION_KEY_SIZE, Error};
 
 /// The ML-KEM-768 modulus `q`. Every coefficient of `pk_m` must be below it.
 const Q: u16 = 3329;
+
+/// How many random seeds the cross-check against the reference crate tries.
+const RANDOM_SEEDS: usize = 32;
 
 /// An RNG that returns the bytes it was given, in order. Test helper only; panics once the
 /// bytes run out.
@@ -103,6 +107,24 @@ fn from_seed_keeps_seed_as_sk() {
     for (index, vector) in VECTORS.into_iter().enumerate() {
         let dk = DecapsulationKey::from_seed(vector.seed);
         assert_eq!(dk.as_bytes(), &vector.sk, "vector {}", index + 1);
+    }
+}
+
+#[test]
+fn from_seed_matches_reference_crate_for_random_seeds() {
+    for _ in 0..RANDOM_SEEDS {
+        let mut seed = [0u8; DECAPSULATION_KEY_SIZE];
+        getrandom::fill(&mut seed).expect("OS random number generator");
+
+        let dk = DecapsulationKey::from_seed(seed);
+        let pk_ref = x_wing_ref::DecapsulationKey::from(seed)
+            .encapsulation_key()
+            .to_bytes();
+        assert_eq!(
+            dk.encapsulation_key().as_bytes().as_slice(),
+            pk_ref.as_slice(),
+            "seed {seed:02x?}"
+        );
     }
 }
 
