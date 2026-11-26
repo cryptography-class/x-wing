@@ -34,8 +34,10 @@
 )]
 mod combiner;
 mod errors;
+mod keys;
 
 pub use errors::Error;
+pub use keys::{DecapsulationKey, EncapsulationKey};
 
 /// The decapsulation key length, 32 bytes: the seed that every other key part is derived
 /// from.
@@ -50,5 +52,7 @@ pub const CIPHERTEXT_SIZE: usize = 1120;
 /// The shared secret length, 32 bytes: the SHA3-256 output of the combiner.
 pub const SHARED_SECRET_SIZE: usize = 32;
 
+#[cfg(test)]
+mod test_vectors;
 #[cfg(test)]
 mod tests;
