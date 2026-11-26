@@ -36,6 +36,13 @@ reviews:
   suggested_reviewers: false
   enable_prompt_for_ai_agents: false
 
+  pre_merge_checks:
+    title:
+      mode: warning
+      requirements: >-
+        The title is the branch name, `<type>/<name>`, for example `feature/combiner` or
+        `chore/repo-setup`. Don't ask for a descriptive sentence; the description lists the changes.
+
   path_instructions:
     - path: "**/*.rs"
       instructions: |
@@ -48,9 +55,12 @@ reviews:
         - Flag silently discarded `Result`s (`let _ = ...`, `.ok()` swallowing errors) without a documented reason
         - Prefer typed error enums over string-matching error messages
         - Every `unsafe` block must be minimal and carry a `// SAFETY:` comment; flag `unsafe` that could be written safely without meaningful cost
-        - Check `pub` items have `///` doc comments (with `# Errors` / `# Panics` / `# Safety` where applicable), laid out as a one-sentence summary, then details, then the sections `# Arguments`, `# Errors`, `# Panics`, `# Safety`, `# Examples`, in that order and only where they apply
+        - Check every item has a `///` doc comment, private ones included (functions, types, constants, error variants, non-obvious struct fields), laid out as a one-sentence summary starting with a third-person verb ("Returns", "Derives"), then details, then the sections `# Errors`, `# Panics`, `# Safety`, `# Examples`, in that order and only where they apply. Parameters are described in prose, not an `# Arguments` section. `# Errors` names each variant as an intra-doc link with its cause.
+        - Docs, comments and `Display` messages carry no section numbers for any spec, and don't name draft-11, since following it is the default (the crate docs link it once). Other specs are named without a section ("FIPS 203", "RFC 7748"), and checks are named by what they do ("the FIPS 203 modulus check"). Flag section numbers and "§" in docs; the only exception is test vector sources ("Appendix C, vector 1"). Docs use the code names from the naming convention (`ss_m`, `ct_x`, `pk_x`, `ek_x`, `eseed`, `XWING_LABEL`) and the draft's algorithm names (expandDecapsulationKey, EncapsulateDerand). Flag docs that contradict the draft or describe behaviour the code doesn't have.
+        - Module docs (`//!`) open with one sentence naming the component; `mod.rs` files also explain cross-file design choices and point to the entry points. Types holding secrets state their guarantees (erased on drop, no `Clone`, redacted `Debug`). Error enums state that no variant holds secret bytes; `Display` messages are lowercase without a trailing period.
+        - Inline comments explain why (why a buffer is zeroized, why a check is absent, why an offset is safe), not what. Techniques taken from another crate are credited with its name, version, and license.
         - Flag new inline `#[cfg(test)] mod tests { ... }` blocks: tests go in the module's own `tests.rs`. Do not flag existing inline blocks that a change only touches
-        - Prefer explicit, readable code that maps line by line to the draft's pseudocode (cite the section, e.g. "draft-11 §5.3") over clever iterator/generic abstractions
+        - Prefer explicit, readable code that maps line by line to the draft's pseudocode over clever iterator/generic abstractions
         - Note avoidable allocations (needless `.clone()`/`.to_vec()`, `Vec` where a fixed-size array works); every X-Wing value has a fixed size, so heap allocation should not be needed
 
         Spec conformance (treat as high severity):
@@ -80,7 +90,8 @@ reviews:
         - Cross-checks against an existing X-Wing crate (dev-dependency only) cover random seeds and eseeds, not only the fixed vectors.
         - Round-trip tests: Decapsulate(Encapsulate(pk)) yields the same shared secret.
         - Negative tests: wrong lengths for pk/ct/sk/eseed (where the API takes slices), an encapsulation key that fails the FIPS 203 §7.2 check (a coefficient >= q = 3329) is rejected, and a tampered ciphertext decapsulates to a different shared secret without an error.
-        - Test vectors are cited by source (draft version and appendix) in a comment so they can be verified.
+        - Test vectors are cited by source in a doc comment (e.g. "Appendix C, vector 1") so they can be verified.
+        - Tests in `tests.rs` are grouped under `// ---- function_name ----` separators, test names state the behaviour checked, helpers are documented, and assertions carry a message identifying the failing case.
         Flag missing coverage as a suggestion, not as high severity.
 
     - path: "{src/main.rs,src/bin/**/*.rs,src/cli/**/*.rs,src/commands/**/*.rs}"
