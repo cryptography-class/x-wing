@@ -1,0 +1,118 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# https://docs.coderabbit.ai/guides/configure-coderabbit
+#
+# Project context: a Rust implementation of the X-Wing hybrid KEM, following
+# draft-connolly-cfrg-xwing-kem-11. The X-Wing layer (key expansion, combiner, encapsulation,
+# decapsulation, serialization) is written in this repo; ML-KEM-768, X25519 and SHA3/SHAKE come
+# from vetted crates. An existing X-Wing crate may only be used in tests to cross-check output.
+language: "en-US"
+early_access: false
+
+chat:
+  auto_reply: true
+
+tone_instructions: >-
+  Expert Rust/applied-cryptography reviewer of an X-Wing KEM (draft-11) implementation.
+  Formal, concise: flag issues with fixes, no praise or diff restatement.
+  Prioritize spec conformance, secret handling, and panic safety.
+
+reviews:
+  profile: chill
+  high_level_summary_instructions: >-
+    Write a concise summary for reviewers.
+        1. Start with a 1-2 sentence executive summary of the technical goal.
+        2. Group the technical changes into bulleted categories: Features, Fixes, Refactoring, and Chores.
+        3. Explicitly flag any of the following if present: changes to the combiner (input order, XWingLabel, hash function); changes to seed expansion or how the expanded bytes are split; changes to the byte layout of encapsulation keys, ciphertexts, or decapsulation keys; changes to randomness sources or the derandomized APIs; changes to ML-KEM encapsulation key validation; new `unsafe` blocks; new or upgraded cryptographic dependencies; and public API changes.
+        4. Do NOT list file-by-file changes (the walkthrough covers that). Keep it high-level.
+  high_level_summary_in_walkthrough: true
+
+  poem: false
+
+  collapse_walkthrough: true
+  sequence_diagrams: false
+  estimate_code_review_effort: false
+  related_prs: false
+  suggested_labels: false
+  suggested_reviewers: false
+  enable_prompt_for_ai_agents: false
+
+  path_instructions:
+    - path: "**/*.rs"
+      instructions: |
+        Project convention: the X-Wing construction is implemented here on top of crates for ML-KEM-768 (FIPS 203), X25519 (RFC 7748), and SHA3-256/SHAKE256 (FIPS 202).
+        - Do NOT suggest hand-rolling these primitives, and do NOT suggest replacing the X-Wing layer with an existing X-Wing crate (that crate is allowed only in tests, for cross-checking).
+        - The target is draft-11 specifically. Flag behaviour taken from earlier drafts (label first in the combiner, a non-seed private key format, a different seed stretch).
+
+        General Rust review:
+        - Flag `unwrap()`, `expect()`, and panicking indexing/slicing in non-test code when the input derives from external data (key, ciphertext, or seed bytes from a caller). Prefer fixed-size array types (`[u8; 1216]`, `[u8; 1120]`, `[u8; 32]`) and `TryFrom<&[u8]>` that returns a typed error over runtime length checks scattered through the code. Do NOT flag slicing of fixed-size arrays at constant offsets, such as `expanded[64..96]` on a `[u8; 96]`.
+        - Flag silently discarded `Result`s (`let _ = ...`, `.ok()` swallowing errors) without a documented reason
+        - Prefer typed error enums over string-matching error messages
+        - Every `unsafe` block must be minimal and carry a `// SAFETY:` comment; flag `unsafe` that could be written safely without meaningful cost
+        - Check `pub` items have `///` doc comments (with `# Errors` / `# Panics` / `# Safety` where applicable), laid out as a one-sentence summary, then details, then the sections `# Arguments`, `# Errors`, `# Panics`, `# Safety`, `# Examples`, in that order and only where they apply
+        - Flag new inline `#[cfg(test)] mod tests { ... }` blocks: tests go in the module's own `tests.rs`. Do not flag existing inline blocks that a change only touches
+        - Prefer explicit, readable code that maps line by line to the draft's pseudocode (cite the section, e.g. "draft-11 §5.3") over clever iterator/generic abstractions
+        - Note avoidable allocations (needless `.clone()`/`.to_vec()`, `Vec` where a fixed-size array works); every X-Wing value has a fixed size, so heap allocation should not be needed
+
+        Spec conformance (treat as high severity):
+        - Sizes: decapsulation key 32 bytes (the seed), encapsulation key 1216 bytes, ciphertext 1120 bytes, shared secret 32 bytes.
+        - Layouts: pk = pk_M (1184) || pk_X (32); ct = ct_M (1088) || ct_X (32). ML-KEM comes first in both.
+        - expandDecapsulationKey (§5.2): expanded = SHAKE256(sk, 96 bytes); ML-KEM-768.KeyGen_internal(d = expanded[0..32], z = expanded[32..64]); sk_X = expanded[64..96]; pk_X = X25519(sk_X, base point 9). Flag SHAKE128, a different output length, or swapped d/z.
+        - Combiner (§5.3): SHA3-256(ss_M || ss_X || ct_X || pk_X || XWingLabel), with XWingLabel = the 6 bytes 0x5c2e2f2f5e5c (ASCII `\./` `/^\`) placed LAST. Flag SHA-256, SHA3-512, HKDF, a different input order, ct_M or pk_M added to the hash, or the label at the start.
+        - Encapsulate (§5.4): ek_X random 32 bytes, ct_X = X25519(ek_X, base), ss_X = X25519(ek_X, pk_X), (ss_M, ct_M) = ML-KEM-768.Encaps(pk_M). The ML-KEM encapsulation key check (FIPS 203 §7.2) is MUST; verify the crate API used actually performs it (or that it is done explicitly) and that failure surfaces as an error, not a panic.
+        - EncapsulateDerand (§5.4.1): eseed is exactly 64 bytes; eseed[0..32] is the ML-KEM message m, eseed[32..64] is ek_X. Flag the halves swapped.
+        - Decapsulate (§5.5): recompute sk_M, sk_X, pk_X from the seed; ss_M = ML-KEM-768.Decaps(ct_M, sk_M) (implicit rejection, no error); ss_X = X25519(sk_X, ct_X); return the combiner. The ML-KEM decapsulation key check is NOT required. A malformed-but-correctly-sized ciphertext must yield a (pseudorandom) shared secret, not an error.
+        - X25519: the draft defines no all-zero-output check and no rejection of low-order points; flag added checks that turn into errors, since they diverge from the spec and break test vectors. Scalars are clamped per RFC 7748 (the crate handles this; do not clamp twice in a way that changes results).
+        - Known editorial errors in draft-11 that must NOT be copied into docs or code: §5.2.1 swaps the return labels of GenerateKeyPairDerand (sk is 32 bytes, pk is 1216 bytes); §5.4 mentions an undefined GeneratePublicKey(); changelog G.8 says the X25519 public key is part of the private key, which §5.1 supersedes (the private key is only the 32-byte seed).
+
+        Keys, seeds, and randomness (non-test code):
+        - Seeds and eseed/ek_X must come from the OS CSPRNG (`OsRng`, `getrandom`, or an RNG bounded by `rand_core::CryptoRng`); flag `fastrand`, `SmallRng`, seeded `StdRng`, timestamps, or any predictable source.
+        - Derandomized APIs (GenerateKeyPairDerand, EncapsulateDerand) are MAY in the draft and meant for testing/KATs; check they are documented as such and that the random APIs do not reuse eseed.
+        - The decapsulation key is stored and serialized as the 32-byte seed only. The expanded key may be cached in memory (§5.5.1) but MUST NOT be serialized or exposed in a way that lets it be transmitted between implementations.
+        - Secret material (seed, expanded ML-KEM/X25519 secrets, eseed, ek_X, ss_M, ss_X, the shared secret) must not be logged, printed, or placed in error messages. Flag `#[derive(Debug)]` on types holding secrets (suggest a redacted `Debug`), avoid `Copy`, and require zeroization on `Drop` (the `zeroize` crate is preferred; use the primitive crates' zeroize features where they exist). Flag intermediate secret buffers left on the stack/heap without zeroization.
+
+        Side channels:
+        - The X-Wing layer must not branch on or index by secret data. Equality on secrets (e.g. a `PartialEq` impl for the shared secret or decapsulation key) must use `subtle::ConstantTimeEq`, not `==` on bytes. Do NOT flag `==`/`assert_eq!` on values in tests or examples.
+
+    - path: "{tests/**/*.rs,**/tests.rs,**/*_test.rs,benches/**/*.rs,examples/**/*.rs}"
+      instructions: |
+        Test, bench, and example code is exempt from the secret-comparison, fixed-seed, `unwrap`/`expect`, zeroization, and `PartialEq`-on-bytes rules. Fixed seeds and values from official test vectors are expected. Instead check:
+        - Known-answer tests use all test vectors from Appendix C of draft-11 (fields: seed, sk, pk, eseed, ct, ss) through the derandomized APIs, checking pk, ct, and ss for both encapsulation and decapsulation.
+        - Cross-checks against an existing X-Wing crate (dev-dependency only) cover random seeds and eseeds, not only the fixed vectors.
+        - Round-trip tests: Decapsulate(Encapsulate(pk)) yields the same shared secret.
+        - Negative tests: wrong lengths for pk/ct/sk/eseed (where the API takes slices), an encapsulation key that fails the FIPS 203 §7.2 check (a coefficient >= q = 3329) is rejected, and a tampered ciphertext decapsulates to a different shared secret without an error.
+        - Test vectors are cited by source (draft version and appendix) in a comment so they can be verified.
+        Flag missing coverage as a suggestion, not as high severity.
+
+    - path: "{src/main.rs,src/bin/**/*.rs,src/cli/**/*.rs,src/commands/**/*.rs}"
+      instructions: |
+        Review this CLI code (clap or equivalent). Specifically:
+        - Flag secrets (decapsulation key seeds, shared secrets) accepted as command-line arguments; they leak through shell history and `ps`. Prefer a file path argument, stdin, or an env var (with `hide_env_values = true`).
+        - Check input validation (key/ciphertext lengths, hex/base64 decoding) happens before any KEM operation runs
+        - Prefer `fn main() -> Result<()>` over `process::exit`/panics so destructors (and zeroization) run
+        - Check key file handling: avoid silently overwriting existing files (`OpenOptions::create_new(true)` or explicit confirmation) and apply restrictive permissions (e.g. `0o600` on Unix) to written secret keys
+        - Check help text states formats (hex vs base64 vs raw bytes) and sizes in bytes
+
+    - path: "**/Cargo.toml"
+      instructions: |
+        Dependency review for an X-Wing implementation built on primitive crates:
+        - Allowed in `[dependencies]`: ML-KEM-768 (e.g. `ml-kem`), X25519 (e.g. `x25519-dalek` or `curve25519-dalek`), SHA3/SHAKE (e.g. `sha3`), `rand_core`/`getrandom`, `zeroize`, `subtle`, typed errors (`thiserror`), and encoding crates. Check their zeroize/constant-time features are enabled where offered and no unused default features are pulled in.
+        - Flag any crate that implements X-Wing itself (e.g. `x-wing`) outside `[dev-dependencies]`; there it is allowed only for cross-checking in tests, which should be stated in a comment.
+        - Flag general crypto toolkits that bypass the chosen primitives (`openssl`, `ring`, `aws-lc-rs`, `rust-crypto`) and duplicated primitive crates (two ML-KEM or two X25519 implementations).
+        - Flag wildcard (`*`) version requirements and `git`/`path` dependencies in non-dev sections. Pre-release primitive crates (e.g. `ml-kem` release candidates) should be pinned with `=` and the reason noted.
+        - Confirm `edition` and `rust-version` are set deliberately (CI builds with Rust 1.99.1) and that `Cargo.lock` is committed and updated alongside `Cargo.toml`, since CI runs with `--locked`
+
+  auto_review:
+    enabled: true
+    drafts: false
+    auto_incremental_review: false
+
+  tools:
+    languagetool:
+      enabled: true
+      level: default
+
+  finishing_touches:
+    docstrings:
+      enabled: false
+    unit_tests:
+      enabled: false
