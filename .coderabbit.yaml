@@ -94,15 +94,6 @@ reviews:
         - Tests in `tests.rs` are grouped under `// ---- function_name ----` separators, test names state the behaviour checked, helpers are documented, and assertions carry a message identifying the failing case.
         Flag missing coverage as a suggestion, not as high severity.
 
-    - path: "{src/main.rs,src/bin/**/*.rs,src/cli/**/*.rs,src/commands/**/*.rs}"
-      instructions: |
-        Review this CLI code (clap or equivalent). Specifically:
-        - Flag secrets (decapsulation key seeds, shared secrets) accepted as command-line arguments; they leak through shell history and `ps`. Prefer a file path argument, stdin, or an env var (with `hide_env_values = true`).
-        - Check input validation (key/ciphertext lengths, hex/base64 decoding) happens before any KEM operation runs
-        - Prefer `fn main() -> Result<()>` over `process::exit`/panics so destructors (and zeroization) run
-        - Check key file handling: avoid silently overwriting existing files (`OpenOptions::create_new(true)` or explicit confirmation) and apply restrictive permissions (e.g. `0o600` on Unix) to written secret keys
-        - Check help text states formats (hex vs base64 vs raw bytes) and sizes in bytes
-
     - path: "**/Cargo.toml"
       instructions: |
         Dependency review for an X-Wing implementation built on primitive crates:
