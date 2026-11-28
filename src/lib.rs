@@ -24,19 +24,37 @@
 //! ML-KEM's shared secret and `ct_x` is X25519's part of the ciphertext. `ek` means
 //! the ephemeral X25519 secret (`ek_x`), not the FIPS 203 encapsulation key, which
 //! is `pk_m` here.
+//!
+//! # Features
+//!
+//! - `hazmat` makes `EncapsulationKey::encapsulate_derand` (EncapsulateDerand) public. **Derandomized functions
+//!   are for test vectors only.**
+//!
+//! # Examples
+//!
+//! ```
+//! use x_wing::DecapsulationKey;
+//!
+//! // The receiver makes a key pair and publishes the encapsulation key.
+//! let dk = DecapsulationKey::generate()?;
+//! let pk = dk.encapsulation_key();
+//!
+//! // The sender encapsulates a shared secret and sends the ciphertext.
+//! let (ct, ss_sender) = pk.encapsulate()?;
+//!
+//! // The receiver decapsulates the ciphertext and gets the same secret.
+//! let ss_receiver = dk.decapsulate(&ct);
+//! assert_eq!(ss_sender, ss_receiver);
+//! # Ok::<(), x_wing::Error>(())
+//! ```
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "encapsulate and decapsulate use it from feature/encapsulation on"
-    )
-)]
 mod combiner;
 mod errors;
+mod kem;
 mod keys;
 
 pub use errors::Error;
+pub use kem::{Ciphertext, SharedSecret};
 pub use keys::{DecapsulationKey, EncapsulationKey};
 
 /// The decapsulation key length, 32 bytes: the seed that every other key part is derived
@@ -52,6 +70,8 @@ pub const CIPHERTEXT_SIZE: usize = 1120;
 /// The shared secret length, 32 bytes: the SHA3-256 output of the combiner.
 pub const SHARED_SECRET_SIZE: usize = 32;
 
+#[cfg(test)]
+mod test_rng;
 #[cfg(test)]
 mod test_vectors;
 #[cfg(test)]

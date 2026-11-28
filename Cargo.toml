@@ -6,6 +6,9 @@ rust-version = "1.87"
 description = "X-Wing hybrid post-quantum KEM (draft-connolly-cfrg-xwing-kem-11)"
 license = "MIT"
 
+[features]
+hazmat = []
+
 [dependencies]
 ml-kem = { version = "0.3.4", features = ["hazmat", "zeroize"] }
 x25519-dalek = { version = "3.0.0", features = ["static_secrets"] }

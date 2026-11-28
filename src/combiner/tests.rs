@@ -41,8 +41,8 @@ fn xwing_label_matches_draft_bytes() {
 fn combiner_known_answer_for_zero_inputs() {
     let zero = [0u8; 32];
     assert_eq!(
-        combiner(&zero, &zero, &zero, &zero),
-        hex_32(ZERO_INPUTS_SS),
+        combiner(&zero, &zero, &zero, &zero).as_bytes(),
+        &hex_32(ZERO_INPUTS_SS),
         "all-zero inputs"
     );
 }
@@ -60,8 +60,8 @@ fn combiner_hashes_inputs_in_draft_order_with_label_last() {
     let expected: [u8; 32] = Sha3_256::digest(&input).into();
 
     assert_eq!(
-        combiner(&ss_m, &ss_x, &ct_x, &pk_x),
-        expected,
+        combiner(&ss_m, &ss_x, &ct_x, &pk_x).as_bytes(),
+        &expected,
         "SHA3-256(ss_m || ss_x || ct_x || pk_x || XWING_LABEL)"
     );
 }
