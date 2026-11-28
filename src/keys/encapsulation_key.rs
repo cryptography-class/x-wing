@@ -23,16 +23,8 @@ pub struct EncapsulationKey {
     /// The serialized key, `pk_m ‖ pk_x`.
     pk: [u8; ENCAPSULATION_KEY_SIZE],
     /// The parsed ML-KEM-768 encapsulation key.
-    #[expect(
-        dead_code,
-        reason = "encapsulate reads it from feature/encapsulation on"
-    )]
     pk_m: ml_kem_768::EncapsulationKey,
     /// The parsed X25519 public key.
-    #[expect(
-        dead_code,
-        reason = "encapsulate reads it from feature/encapsulation on"
-    )]
     pk_x: PublicKey,
 }
 
@@ -56,6 +48,16 @@ impl EncapsulationKey {
     #[must_use]
     pub fn as_bytes(&self) -> &[u8; ENCAPSULATION_KEY_SIZE] {
         &self.pk
+    }
+
+    /// Returns the parsed ML-KEM-768 encapsulation key `pk_m`.
+    pub(crate) fn pk_m(&self) -> &ml_kem_768::EncapsulationKey {
+        &self.pk_m
+    }
+
+    /// Returns the parsed X25519 public key `pk_x`.
+    pub(crate) fn pk_x(&self) -> &PublicKey {
+        &self.pk_x
     }
 }
 

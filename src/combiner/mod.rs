@@ -10,19 +10,21 @@
 
 use sha3::{Digest, Sha3_256};
 
+use crate::SharedSecret;
+
 /// The X-Wing label, the 6 ASCII bytes `\.//^\` (`5c2e2f2f5e5c` in hex).
 pub(crate) const XWING_LABEL: [u8; 6] = [0x5c, 0x2e, 0x2f, 0x2f, 0x5e, 0x5c];
 
 /// Derives the X-Wing shared secret from `ss_m` and `ss_x`.
 ///
-/// Returns `SHA3-256(ss_m ‖ ss_x ‖ ct_x ‖ pk_x ‖ XWING_LABEL)`. The caller owns the returned
-/// secret and is responsible for erasing it.
+/// Returns `SHA3-256(ss_m ‖ ss_x ‖ ct_x ‖ pk_x ‖ XWING_LABEL)`, which erases itself when it's
+/// dropped.
 pub(crate) fn combiner(
     ss_m: &[u8; 32],
     ss_x: &[u8; 32],
     ct_x: &[u8; 32],
     pk_x: &[u8; 32],
-) -> [u8; 32] {
+) -> SharedSecret {
     // `sha3` is built with its `zeroize` feature, so the hasher erases its state, which has
     // absorbed `ss_m` and `ss_x`, when it's dropped.
     let mut hasher = Sha3_256::new();
@@ -31,7 +33,7 @@ pub(crate) fn combiner(
     hasher.update(ct_x);
     hasher.update(pk_x);
     hasher.update(XWING_LABEL);
-    hasher.finalize().into()
+    SharedSecret::new(hasher.finalize().into())
 }
 
 #[cfg(test)]

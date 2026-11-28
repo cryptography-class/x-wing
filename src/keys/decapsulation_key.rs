@@ -51,16 +51,8 @@ pub struct DecapsulationKey {
     /// The seed that every other part is derived from.
     sk: [u8; DECAPSULATION_KEY_SIZE],
     /// The ML-KEM-768 decapsulation key.
-    #[expect(
-        dead_code,
-        reason = "decapsulate reads it from feature/encapsulation on"
-    )]
     sk_m: ml_kem_768::DecapsulationKey,
     /// The X25519 secret key.
-    #[expect(
-        dead_code,
-        reason = "decapsulate reads it from feature/encapsulation on"
-    )]
     sk_x: StaticSecret,
     /// The matching encapsulation key.
     pk: EncapsulationKey,
@@ -137,6 +129,16 @@ impl DecapsulationKey {
     #[must_use]
     pub fn encapsulation_key(&self) -> &EncapsulationKey {
         &self.pk
+    }
+
+    /// Returns the ML-KEM-768 decapsulation key `sk_m`.
+    pub(crate) fn sk_m(&self) -> &ml_kem_768::DecapsulationKey {
+        &self.sk_m
+    }
+
+    /// Returns the X25519 secret key `sk_x`.
+    pub(crate) fn sk_x(&self) -> &StaticSecret {
+        &self.sk_x
     }
 }
 

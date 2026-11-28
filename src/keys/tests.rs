@@ -1,12 +1,10 @@
-use core::convert::Infallible;
-
-use rand_core::{TryCryptoRng, TryRng, utils};
 use shake::{ExtendableOutput, Shake256, Update, XofReader};
 use x_wing_ref::{Decapsulator, KeyExport};
 use x25519_dalek::{PublicKey, X25519_BASEPOINT_BYTES, x25519};
 
 use super::decapsulation_key::expand_decapsulation_key;
 use super::{DecapsulationKey, EncapsulationKey};
+use crate::test_rng::FixedRng;
 use crate::test_vectors::{VECTOR_1, VECTORS};
 use crate::{DECAPSULATION_KEY_SIZE, ENCAPSULATION_KEY_SIZE, Error};
 
@@ -15,34 +13,6 @@ const Q: u16 = 3329;
 
 /// How many random seeds the cross-check against the reference crate tries.
 const RANDOM_SEEDS: usize = 32;
-
-/// An RNG that returns the bytes it was given, in order. Test helper only; panics once the
-/// bytes run out.
-struct FixedRng {
-    /// The bytes still to be returned.
-    bytes: Vec<u8>,
-}
-
-impl TryRng for FixedRng {
-    type Error = Infallible;
-
-    fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
-        utils::next_word_via_fill(self)
-    }
-
-    fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
-        utils::next_word_via_fill(self)
-    }
-
-    fn try_fill_bytes(&mut self, dst: &mut [u8]) -> Result<(), Self::Error> {
-        assert!(dst.len() <= self.bytes.len(), "FixedRng ran out of bytes");
-        dst.copy_from_slice(&self.bytes[..dst.len()]);
-        self.bytes.drain(..dst.len());
-        Ok(())
-    }
-}
-
-impl TryCryptoRng for FixedRng {}
 
 /// Returns `pk` with the first 12-bit coefficient of `pk_m` set to `value`. The coefficient's
 /// low 8 bits are byte 0 and its high 4 bits are the low nibble of byte 1.
